@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "C:/Users/11343/pfad_new"
+		},
+		{
+			"path": "C:/Users/11343/quake-pulse"
+		}
+	],
+	"settings": {
+		"python-envs.defaultEnvManager": "ms-python.python:system"
+	}
+}
