@@ -29,19 +29,28 @@ except:
 
 # Game state manager
 def main():
+    from states.gameplay import Gameplay  # ✅ 只需在函数内引入，避免循环引用
     clock = pygame.time.Clock()
     current_state = Menu(SCREEN)
 
-    # Main loop
     while True:
         next_state = current_state.run()
+
         if next_state == "QUIT":
             pygame.quit()
             sys.exit()
         elif next_state == "GAME":
-            # later: import gameplay state
-            pass
+            current_state = Gameplay(SCREEN)
+        elif next_state in ["ENDING_EVIL", "ENDING_SHUTDOWN"]:
+            # Simple ending display
+            SCREEN.fill((0, 0, 0))
+            font = pygame.font.Font(None, 60)
+            text = "You became the most corrupt canteen!" if next_state == "ENDING_EVIL" else "The canteen was shut down!"
+            label = font.render(text, True, (255, 0, 0))
+            SCREEN.blit(label, (100, 250))
+            pygame.display.flip()
+            pygame.time.wait(4000)
+            current_state = Menu(SCREEN)
+
         clock.tick(60)
 
-if __name__ == "__main__":
-    main()
