@@ -1,114 +1,51 @@
 import pygame
-import sys
-import random
+from ui import Button
+from dialog import DialogBox
 
-# Initialize Pygame
-pygame.init()
+class GameplayState:
+    def __init__(self, screen):
+        self.screen = screen
+        self.font = pygame.font.Font("assets/fonts/m6x11.ttf", 24)
 
-# Screen setup
-WIDTH, HEIGHT = 800, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Evil Canteen Simulator")
+        # UI Buttons
+        self.buttons = [
+            Button("Use Expired Vegetables", (80, 100), (300, 60), self.font),
+            Button("Use Less Meat", (80, 180), (300, 60), self.font),
+            Button("Overcharge Customers", (80, 260), (300, 60), self.font),
+        ]
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (200, 30, 30)
-GRAY = (180, 180, 180)
+        self.dialog = DialogBox(self.font)
+        self.black_heart_value = 0
 
-# Font
-font = pygame.font.SysFont("arial", 28)
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); exit()
 
-# Game variables
-money = 100
-evil_score = 0
-day = 1
+            for btn in self.buttons:
+                if btn.is_clicked(event):
+                    self.on_button_click(btn.text)
 
-# Food events (name, effect on evil_score, effect on money)
-events = [
-    ("Use cheaper oil", 5, 10),
-    ("Reuse yesterday's leftovers", 10, 20),
-    ("Add extra salt to hide the taste", 3, 5),
-    ("Ignore customer complaint", 8, 15),
-    ("Fake good reviews online", 12, 25),
-    ("Serve cold rice", 6, 10),
-    ("Buy low-quality meat", 15, 30),
-    ("Raise price secretly", 10, 20),
-    ("Cockroach in the soup", 25, 40),
-    ("Report student who posted bad review", 18, 35)
-]
+    def on_button_click(self, name):
+        if name == "Use Expired Vegetables":
+            self.black_heart_value += 1
+            self.dialog.show("You secretly used expired vegetables. The customers might notice... (+1 Corruption)")
+        elif name == "Use Less Meat":
+            self.black_heart_value += 1
+            self.dialog.show("You cut down on meat to save costs. The dish looks a bit sad... (+1 Corruption)")
+        elif name == "Overcharge Customers":
+            self.black_heart_value += 1
+            self.dialog.show("You increased the price. Some customers look angry... (+1 Corruption)")
 
-# Game loop
-def gameplay():
-    global money, evil_score, day
-    clock = pygame.time.Clock()
+    def update(self):
+        pass
 
-    running = True
-    while running:
-        screen.fill((240, 235, 220))
+    def render(self):
+        self.screen.fill((30, 25, 25))
+        title = self.font.render(f"Corruption: {self.black_heart_value}", True, (255, 100, 100))
+        self.screen.blit(title, (1000, 50))
 
-        # Draw stats
-        stats_text = font.render(f"Day: {day}   Money: ${money}   Evil Score: {evil_score}", True, BLACK)
-        screen.blit(stats_text, (50, 40))
+        for btn in self.buttons:
+            btn.draw(self.screen)
 
-        # Display random event
-        event = random.choice(events)
-        event_text = font.render(f"Event: {event[0]}", True, BLACK)
-        screen.blit(event_text, (50, 150))
-
-        # Buttons
-        yes_rect = pygame.Rect(150, 300, 180, 80)
-        no_rect = pygame.Rect(470, 300, 180, 80)
-
-        pygame.draw.rect(screen, RED, yes_rect, border_radius=12)
-        pygame.draw.rect(screen, GRAY, no_rect, border_radius=12)
-
-        yes_text = font.render("Do it", True, WHITE)
-        no_text = font.render("Skip", True, WHITE)
-        screen.blit(yes_text, (yes_rect.x + 50, yes_rect.y + 25))
-        screen.blit(no_text, (no_rect.x + 60, no_rect.y + 25))
-
-        pygame.display.flip()
-
-        # Event handling
-        for event_handler in pygame.event.get():
-            if event_handler.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-            elif event_handler.type == pygame.MOUSEBUTTONDOWN:
-                if yes_rect.collidepoint(event_handler.pos):
-                    money += event[2]
-                    evil_score += event[1]
-                    day += 1
-                elif no_rect.collidepoint(event_handler.pos):
-                    day += 1
-
-        # End condition
-        if evil_score >= 100:
-            end_screen(True)
-            running = False
-        elif day > 10:
-            end_screen(False)
-            running = False
-
-        clock.tick(30)
-
-
-def end_screen(evil_win):
-    screen.fill((0, 0, 0))
-    if evil_win:
-        msg = "You became the most evil canteen ever!"
-    else:
-        msg = "Semester ends... The canteen survived another term."
-
-    text = font.render(msg, True, WHITE)
-    screen.blit(text, (100, 250))
-    pygame.display.flip()
-    pygame.time.wait(3000)
-    pygame.quit()
-    sys.exit()
-
-
-if __name__ == "__main__":
-    gameplay()
+        self.dialog.draw(self.screen)
