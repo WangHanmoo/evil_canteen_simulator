@@ -39,7 +39,7 @@ def load_image(path, size=None):
 
 
 class Button:
-    def __init__(self, rect, text, font, color=(80, 80, 200), hover=(120, 120, 255)):
+    def __init__(self, rect, text, font, color=(100, 50, 140), hover=(240, 200, 60)):
         self.rect = pygame.Rect(rect)
         self.text = text
         self.font = font
@@ -63,25 +63,41 @@ class Button:
 class HeartBar:
     def __init__(self, max_hearts=10):
         self.max = max_hearts
-
-    def draw(self, surf, value):
-        # draw hearts top-right
-        x0 = WINDOW_WIDTH - 20
-        y0 = 20
-        spacing = 28
-        for i in range(self.max):
-            x = x0 - i * spacing
-            if i < value:
-                # decide color based on ranges
-                if value >= 8:
-                    color = (220, 40, 40)  # red
-                elif value >= 4:
-                    color = (140, 140, 140)  # grey
+    def draw(self, surf, value, x=None, y=None, size=16, spacing=20):
+        """Draw hearts horizontally. If x/y provided, draw starting there (left->right).
+        Otherwise default to top-right as before.
+        size controls icon width (approx)."""
+        if x is None:
+            x0 = WINDOW_WIDTH - 20
+            y0 = 20
+            # draw right-to-left
+            for i in range(self.max):
+                x = x0 - i * spacing
+                if i < value:
+                    if value >= 8:
+                        color = (220, 40, 40)
+                    elif value >= 4:
+                        color = (140, 140, 140)
+                    else:
+                        color = (20, 20, 20)
                 else:
-                    color = (20, 20, 20)  # black
-            else:
-                color = (60, 60, 60)
-            pygame.draw.polygon(surf, color, [(x, y0 + 6), (x+8, y0), (x+16, y0+6), (x+8, y0+22)])
+                    color = (60, 60, 60)
+                pygame.draw.polygon(surf, color, [(x, y0 + 6), (x+int(size/2), y0), (x+size, y0+6), (x+int(size/2), y0+size+6)])
+        else:
+            # left-to-right draw starting at x,y
+            for i in range(self.max):
+                xi = x + i * spacing
+                yi = y
+                if i < value:
+                    if value >= 8:
+                        color = (220, 40, 40)
+                    elif value >= 4:
+                        color = (140, 140, 140)
+                    else:
+                        color = (20, 20, 20)
+                else:
+                    color = (60, 60, 60)
+                pygame.draw.polygon(surf, color, [(xi, yi + 6), (xi+int(size/2), yi), (xi+size, yi+6), (xi+int(size/2), yi+size+6)])
 
 
 class SceneBase:
@@ -107,8 +123,8 @@ class TitleScene(SceneBase):
         self.title_font = load_font("assets/fonts/m6x11plus.ttf", 64)
         self.btn_font = load_font("assets/fonts/m6x11.ttf", 32)
         self.bg = load_image("assets/ui/PICTURE_background.png", (WINDOW_WIDTH, WINDOW_HEIGHT))
-        self.start_btn = Button((WINDOW_WIDTH//2-180, 360, 360, 64), "Start Game", self.btn_font)
-        self.quit_btn = Button((WINDOW_WIDTH//2-180, 440, 360, 64), "Quit", self.btn_font)
+        self.start_btn = Button((WINDOW_WIDTH//2-180, 360, 360, 64), "Start Game", self.btn_font, color=(110,50,150), hover=(250,220,80))
+        self.quit_btn = Button((WINDOW_WIDTH//2-180, 440, 360, 64), "Quit", self.btn_font, color=(110,50,150), hover=(250,220,80))
 
     def handle_events(self, events):
         for e in events:
@@ -143,9 +159,9 @@ class PrepScene(SceneBase):
         self.buttons = []
         left = 120
         top = 220
-        for i, (t, v) in enumerate(self.options):
+        for i, (t, v, m) in enumerate(self.options):
             rect = (left, top + i*80, w, 56)
-            self.buttons.append(Button(rect, t, self.font))
+            self.buttons.append(Button(rect, t, self.font, color=(100,50,140), hover=(240,200,60)))
 
     def handle_events(self, events):
         for e in events:
@@ -182,8 +198,8 @@ class BusinessScene(SceneBase):
         left = 80
         top = 140
         w = 520
-        for i, (t, v) in enumerate(self.action_opts):
-            self.buttons.append(Button((left, top+i*70, w, 56), t, self.font))
+        for i, (t, v, m) in enumerate(self.action_opts):
+            self.buttons.append(Button((left, top+i*70, w, 56), t, self.font, color=(100,50,140), hover=(240,200,60)))
 
         # Event/triggers
         self.event_queue = ["complaint1", "inspection1", "inspection2", "complaint2", "warning"]
@@ -191,6 +207,11 @@ class BusinessScene(SceneBase):
         self.ticks = 0
         self.event_timer = 0
         self.current_event = None
+        # event timing: use a random delay between events to reduce frequency
+        # values in milliseconds
+        self.event_delay_min = 5000  # 5 seconds
+        self.event_delay_max = 9000  # 9 seconds
+        self.next_event_delay = random.randint(self.event_delay_min, self.event_delay_max)
 
     def handle_events(self, events):
         for e in events:
@@ -257,9 +278,11 @@ class BusinessScene(SceneBase):
     def update(self, dt):
         # periodically trigger events until queue empty
         self.event_timer += dt
-        if not self.current_event and self.event_queue and self.event_timer > 3500:
+        if not self.current_event and self.event_queue and self.event_timer > self.next_event_delay:
             self.current_event = self.event_queue.pop(0)
             self.event_timer = 0
+            # pick next random delay for subsequent event
+            self.next_event_delay = random.randint(self.event_delay_min, self.event_delay_max)
 
         # check end of day condition: once all events processed -> show ending
         if not self.event_queue and not self.current_event:
@@ -471,6 +494,43 @@ class Game:
         for i, ln in enumerate(lines):
             panel.blit(f.render(ln, True, (220,220,220)), (pad, pad + i*18))
         surf.blit(panel, (10, 10))
+    def draw_money(self, surf):
+        # deprecated: draw_money replaced by draw_status (kept for compatibility)
+        font = load_font("assets/fonts/m6x11.ttf", 18)
+        txt = font.render(f"${self.money:+d}", True, (250, 220, 80))
+        x = WINDOW_WIDTH - 20 - txt.get_width()
+        y = 56
+        surf.blit(txt, (x, y))
+
+    def draw_status(self, surf):
+        """Draw a compact status box at top-right containing hearts and money.
+        Money is right-aligned with $ prefix and colored green (profit) or red (loss).
+        """
+        box_w = 240
+        box_h = 56
+        padding = 8
+        x = WINDOW_WIDTH - box_w - 10
+        y = 10
+        panel = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+        panel.fill((18, 14, 22, 200))
+        # border
+        pygame.draw.rect(panel, (80, 55, 140), (0,0,box_w,box_h), width=2, border_radius=8)
+
+        # hearts (draw small icons at left inside panel)
+        heart_x = padding
+        heart_y = 6
+        # draw hearts inside panel by delegating to HeartBar
+        self.heart_bar.draw(panel, self.hearts, x=heart_x, y=heart_y, size=14, spacing=18)
+
+        # money text right-aligned inside panel
+        font = load_font("assets/fonts/m6x11.ttf", 20)
+        money_text = f"${self.money:+d}"
+        color = (50, 200, 80) if self.money >= 0 else (220, 80, 80)
+        txt = font.render(money_text, True, color)
+        panel.blit(txt, (box_w - padding - txt.get_width(), (box_h - txt.get_height())//2))
+
+        # blit panel onto surface
+        surf.blit(panel, (x, y))
 
     def run(self):
         running = True
@@ -494,6 +554,8 @@ class Game:
             self.draw_logs(self.screen)
             # draw debug panel
             self.draw_debug(self.screen)
+            # draw status box (hearts + money) at top-right
+            self.draw_status(self.screen)
             pygame.display.flip()
 
         pygame.quit()
