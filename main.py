@@ -433,6 +433,14 @@ class PrepScene(SceneBase):
             b.draw(surf)
         # draw instruction modal on top if needed (typewriter effect)
         if getattr(self, 'show_instruction', False):
+            # dim the underlying scene so the modal becomes the primary focus
+            try:
+                overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 160))
+                surf.blit(overlay, (0, 0))
+            except Exception:
+                pass
+
             box_w, box_h = 760, 160
             bx = (WINDOW_WIDTH - box_w)//2
             by = (WINDOW_HEIGHT - box_h)//2
@@ -641,7 +649,24 @@ class BusinessScene(SceneBase):
                         self.game.add_log(f"Minor mistake chosen: {self.action_opts[i][0]} (money {applied_m:+d})")
                     # count action and trigger first event when threshold reached
                     self.actions_done += 1
-                    if not self.first_event_triggered and self.actions_done >= 3 and self.event_queue:
+                    # if hearts are in grey (4-7), count this choice toward apathy persistence
+                    try:
+                        if 4 <= self.game.hearts <= 7:
+                            self.game.history['grey_choice_count'] = self.game.history.get('grey_choice_count', 0) + 1
+                    except Exception:
+                        pass
+
+                    # check apathy immediate-trigger: require at least 5 choices made while in grey AND money >= 1500
+                    try:
+                        if (self.game.money >= 1500) and (self.game.history.get('grey_choice_count', 0) >= 5) and (4 <= self.game.hearts <= 7):
+                            self.game.add_log('Apathy conditions met — triggering ending')
+                            self.game.change_scene('ending')
+                            return
+                    except Exception:
+                        pass
+
+                    # trigger the first event after 2 actions to shorten playtime
+                    if not self.first_event_triggered and self.actions_done >= 2 and self.event_queue:
                         self.current_event = self.event_queue.pop(0)
                         self.first_event_triggered = True
 
@@ -651,34 +676,86 @@ class BusinessScene(SceneBase):
             if choice == 'A':
                 ah = self.apply_heart(-2)
                 self.game.add_log(f'You dodge the complaint. (hearts {ah:+d})')
+                # if already in black after this choice, increment consecutive negative counter
+                try:
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = self.game.history.get('post_black_negative_consec', 0) + 1
+                        self.game.history['last_negative_choice_money'] = self.game.money
+                except Exception:
+                    pass
             else:
                 ah = self.apply_heart(+2)
                 am = self.apply_money(-50)
                 self.game.add_log(f'You apologize and compensate. (hearts {ah:+d}, money {am:+d})')
+                # positive event choice: mark history
+                try:
+                    if ah and ah > 0:
+                        self.game.history['chose_positive_event'] = True
+                except Exception:
+                    pass
         elif ev == 'inspection1':
             if choice == 'A':
                 ah = self.apply_heart(-3)
                 am = self.apply_money(-200)
                 self.game.add_log(f'You bribe the inspector. (hearts {ah:+d}, money {am:+d})')
+                try:
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = self.game.history.get('post_black_negative_consec', 0) + 1
+                        self.game.history['last_negative_choice_money'] = self.game.money
+                except Exception:
+                    pass
             else:
                 ah = self.apply_heart(0)
                 am = self.apply_money(-50)
                 self.game.add_log(f'You accept the inspection (整改 notice). (money {am:+d})')
+                try:
+                    # treat accepting inspection as a non-negative / positive choice for spiral logic
+                    self.game.history['chose_positive_event'] = True
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = 0
+                except Exception:
+                    pass
         elif ev == 'inspection2':
             if choice == 'A':
                 ah = self.apply_heart(-2)
                 self.game.add_log(f'You fire a temp as a scapegoat. (hearts {ah:+d})')
+                try:
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = self.game.history.get('post_black_negative_consec', 0) + 1
+                        self.game.history['last_negative_choice_money'] = self.game.money
+                except Exception:
+                    pass
             else:
                 ah = self.apply_heart(+1)
                 self.game.add_log(f'You accept responsibility. (hearts {ah:+d})')
+                try:
+                    if ah and ah > 0:
+                        self.game.history['chose_positive_event'] = True
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = 0
+                except Exception:
+                    pass
         elif ev == 'complaint2':
             if choice == 'A':
                 ah = self.apply_heart(-1)
                 self.game.add_log(f'You dodge the second complaint. (hearts {ah:+d})')
+                try:
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = self.game.history.get('post_black_negative_consec', 0) + 1
+                        self.game.history['last_negative_choice_money'] = self.game.money
+                except Exception:
+                    pass
             else:
                 ah = self.apply_heart(+1)
                 am = self.apply_money(-30)
                 self.game.add_log(f'You genuinely apologize again. (hearts {ah:+d}, money {am:+d})')
+                try:
+                    if ah and ah > 0:
+                        self.game.history['chose_positive_event'] = True
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = 0
+                except Exception:
+                    pass
         elif ev == 'warning':
             # final key divergence
             if choice == 'A':
@@ -686,10 +763,39 @@ class BusinessScene(SceneBase):
                 # preserve the 'force to 0' semantic by applying a large negative value scaled
                 ah = self.apply_heart(-999)
                 self.game.add_log('You ignored the warning and kept operating.')
+                try:
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = self.game.history.get('post_black_negative_consec', 0) + 1
+                        self.game.history['last_negative_choice_money'] = self.game.money
+                except Exception:
+                    pass
             else:
                 # accept sanitation improvements
                 # stabilize in grey (no change)
                 self.game.add_log('You chose to improve sanitation.')
+                try:
+                    # this is a positive choice logically
+                    self.game.history['chose_positive_event'] = True
+                    if self.game.hearts <= 3:
+                        self.game.history['post_black_negative_consec'] = 0
+                except Exception:
+                    pass
+
+        # generic post-event bookkeeping: count choices made while in grey and check apathy trigger
+        try:
+            if 4 <= self.game.hearts <= 7:
+                self.game.history['grey_choice_count'] = self.game.history.get('grey_choice_count', 0) + 1
+        except Exception:
+            pass
+
+        try:
+            if (self.game.money >= 1500) and (self.game.history.get('grey_choice_count', 0) >= 5) and (4 <= self.game.hearts <= 7):
+                self.game.add_log('Apathy conditions met — triggering ending')
+                self.current_event = None
+                self.game.change_scene('ending')
+                return
+        except Exception:
+            pass
 
         # clear current event
         self.current_event = None
@@ -862,6 +968,14 @@ class BusinessScene(SceneBase):
 
         # draw instruction modal if visible (over everything)
         if getattr(self, 'show_instruction', False):
+            # dim the underlying scene so the modal becomes the primary focus
+            try:
+                overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 160))
+                surf.blit(overlay, (0, 0))
+            except Exception:
+                pass
+
             box_w, box_h = 760, 160
             bx = (WINDOW_WIDTH - box_w)//2
             by = (WINDOW_HEIGHT - box_h)//2
@@ -909,23 +1023,69 @@ class EndingScene(SceneBase):
             print(f"[EndingScene.start] hearts={v}, money={m}, history={g}")
         except Exception:
             pass
-    # 1A: black hearts failure
-        if v <= 3:
-            # check for spiral: had grey then returned to red then ended black
-            if g.get('had_grey') and g.get('had_red_again') and g.get('ended_black'):
-                self.key = 'spiral'
+        # Apathy (strict): hearts currently in grey and player made >=5 choices while in grey AND money >= 1500
+        try:
+            if (m is not None) and (m >= 1500) and (4 <= v <= 7) and (g.get('grey_choice_count', 0) >= 5):
+                self.key = 'apathy'
             else:
-                self.key = '1A'
-        elif v >= 8:
-            # When hearts are all red, choose between best_red and 1B based on money.
-            # Requirement (both required) for best_red: hearts are red AND money < -500.
-            if m < -500:
-                self.key = 'best_red'
+                self.key = None
+        except Exception:
+            self.key = None
+        if self.key != 'apathy':
+            if v <= 3:
+                # When in black-heart range, check Spiral (strict, all required) first.
+                try:
+                    spiral_ok = (
+                        g.get('had_grey') and
+                        g.get('chose_positive_event') and
+                        g.get('ended_black') and
+                        (g.get('post_black_negative_consec', 0) >= 4) and
+                        (g.get('last_negative_choice_money', 0) > 900)
+                    )
+                except Exception:
+                    spiral_ok = False
+
+                if spiral_ok:
+                    self.key = 'spiral'
+                else:
+                    # 1A triggers if ANY of these hold:
+                    # 1) grey-to-black happened quickly (few steps)
+                    # 2) never chose a positive event option
+                    # 3) after dropping to black, hearts never rose and only decreased
+                    cond_quick_grey_to_black = False
+                    cond_no_positive = False
+                    cond_only_decrease_after_black = False
+                    try:
+                        if g.get('had_grey') and g.get('black_step') and g.get('grey_step'):
+                            if (g.get('black_step') - g.get('grey_step')) <= 3:
+                                cond_quick_grey_to_black = True
+                    except Exception:
+                        cond_quick_grey_to_black = False
+                    try:
+                        if not g.get('chose_positive_event'):
+                            cond_no_positive = True
+                    except Exception:
+                        cond_no_positive = False
+                    try:
+                        if g.get('ended_black') and not g.get('post_black_increased') and g.get('post_black_decrease_count', 0) > 0:
+                            cond_only_decrease_after_black = True
+                    except Exception:
+                        cond_only_decrease_after_black = False
+
+                    if cond_quick_grey_to_black or cond_no_positive or cond_only_decrease_after_black:
+                        self.key = '1A'
+                    else:
+                        # fallback for other black-heart cases
+                        self.key = '1A'
+            elif v >= 8:
+                # red-heart branch unchanged: keep best_red/1B logic
+                if m < -500:
+                    self.key = 'best_red'
+                else:
+                    self.key = '1B'
             else:
-                # otherwise treat as the financial-collapse-adjacent ending
-                self.key = '1B'
-        else:
-            self.key = 'apathy'
+                # default mid-range -> apathy fallback (if not already matched earlier)
+                self.key = 'apathy'
 
         # try to load a provided ending image for this key (prefer artist PNGs)
         try:
@@ -953,36 +1113,58 @@ class EndingScene(SceneBase):
         # prepare title/body/subtitle strings and typewriter state
         try:
             # default single-line bodies for simple endings
-            if self.key == '1A':
+            if self.key == 'spiral':
+                self.title_text = 'Late Repentance and the Final Fall'
+                self.title_color = (160,60,60)
+                self.body_full = (
+                    'The harsh reality and the lure of profit proved too strong.\n'
+                    'You tasted purity, yet chose to forget it, sinking into a despair deeper than when you began.\n'
+                    'However, the ledger on your desk shows you earned more money than ever before.\n'
+                    'You won the money, but lost yourself.\n'
+                )
+                # remove hearts/money summary line per user request
+                self.sub_text = ''
+            elif self.key == '1A':
                 self.title_text = 'Termination of Business'
                 self.title_color = (220,50,50)
-                self.body_full = 'Your canteen has been replaced; a competitor has taken your spot.'
-                self.sub_text = '0 Black Hearts'
-            elif self.key == '1B':
-                self.title_text = 'The Collapse of Idealism'
-                self.title_color = (200,180,80)
-                self.body_full = 'You received the highest praise, but also a notice of financial loss.'
-                self.sub_text = f'{v} Red Hearts'
+                self.body_full = (
+                    'Your canteen has been replaced; a competitor has taken your spot.\n'
+                    'The apathy and corruption you poured into the food eventually returned to you.\n'
+                    'Following multiple complaints and inspections, the school board decisively removed you from this lucrative spot.\n'
+                    'You lost, because your evil heart was too obvious.\n'
+                )
+                # remove hearts summary line
+                self.sub_text = ''
             elif self.key == 'apathy':
                 self.title_text = 'The Art of Moderate Survival'
-                self.title_color = (180,180,180)
-                self.body_full = 'Congratulations! You achieved Apathy status, continued operation.'
-                self.sub_text = f'{v} Grey Hearts'
+                # title color changed to #b90c0c
+                self.title_color = (185,12,12)
+                self.body_full = (
+                    'Congratulations! You achieved Apathy status, triggering the Moderate Ending: Continued Operation.\n'
+                    'You learned to strike the "just right" balance between conscience and profit: no major issues, but not too much conscience either.\n'
+                    'You avoided all noticeable extreme actions, quietly making money in the grey area.\n'
+                )
+                # remove hearts/money summary line
+                self.sub_text = ''
             elif self.key == 'best_red':
                 self.title_text = 'The Collapse of Idealism'
                 self.title_color = (80,180,120)
+                # updated per-user text: each sentence ends with a newline for centered, typewriter rendering
                 self.body_full = (
-                    'You received the highest praise, but also a notice of financial loss.\n'
-                    'Your dishes were clean, delicious, and generous—a rare find.\n'
-                    "But an overly idealistic business model meant you couldn't turn a profit and ultimately succumbed to commercial reality.\n"
+                    'Your dishes were clean, delicious, and generous: a rare find.\n'
+                    "But an overly idealistic business model prevents you from making a profit.\n"
+                    'You ultimately lose to business reality.\n'
                     'Your conscience never failed, but your canteen did.\n'
                 )
-                self.sub_text = f'{v} Red Hearts | Money {self.game.money:+d}'
+                # remove hearts/money summary line
+                self.sub_text = ''
             else:
+                # generic fallback
                 self.title_text = 'Late Repentance and the Final Fall'
                 self.title_color = (160,60,60)
                 self.body_full = 'You once had a chance to turn back, but were ultimately consumed by the darkness.'
-                self.sub_text = f'{v} Black Hearts'
+                # remove hearts summary line
+                self.sub_text = ''
         except Exception:
             self.title_text = 'Ending'
             self.title_color = (200,200,200)
@@ -1021,7 +1203,8 @@ class EndingScene(SceneBase):
             surf.blit(self.bg, (0,0))
         v = self.game.hearts
         # render title (moved down by 170px earlier, now shift up by 100px per request)
-        title = self.title_font.render(getattr(self, 'title_text', 'Ending'), True, tuple(getattr(self, 'title_color', (200,200,200))))
+        title_text = getattr(self, 'title_text', 'Ending')
+        title_color = tuple(getattr(self, 'title_color', (200,200,200)))
         # debug: print chosen ending key
         try:
             print(f"[EndingScene.start] chosen ending key: {getattr(self, 'key', None)}")
@@ -1030,7 +1213,23 @@ class EndingScene(SceneBase):
 
         # center title: original base y was 120; moved down by 170 then shift up overall by 100
         title_y = 120 + 170 - 100
-        surf.blit(title, title.get_rect(center=(WINDOW_WIDTH//2, title_y)))
+        key = getattr(self, 'key', None)
+        # draw special outlines requested by the user:
+        # - 1A: white outline
+        # - apathy: pink outline (#fd69fd) and title color already set to #b90c0c in start()
+        outline_col = None
+        if key == '1A':
+            outline_col = (255,255,255)
+        elif key == 'apathy':
+            outline_col = (253,105,253)
+
+        if outline_col is not None:
+            outline_s = self.title_font.render(title_text, True, outline_col)
+            for ox, oy in ((-2, -2), (2, -2), (-2, 2), (2, 2)):
+                surf.blit(outline_s, outline_s.get_rect(center=(WINDOW_WIDTH//2 + ox, title_y + oy)))
+
+        title_s = self.title_font.render(title_text, True, title_color)
+        surf.blit(title_s, title_s.get_rect(center=(WINDOW_WIDTH//2, title_y)))
 
         # render narrative body with typewriter effect. center the visible block around y=400 then shift up 100px
         visible = getattr(self, 'body_full', '')[:int(getattr(self, 'body_progress', 0))]
@@ -1094,7 +1293,22 @@ class Game:
         # core state
         self.hearts = 10
         self.money = 0  # financial counter (profit positive, loss negative)
-        self.history = {'had_grey': False, 'had_red_again': False, 'ended_black': False}
+        self.history = {'had_grey': False, 'had_red_again': False, 'ended_black': False, 'chose_positive_event': False}
+        # count how many player choices happened while hearts were in grey (4-7)
+        self.history['grey_choice_count'] = 0
+        # additional history / tracing for complex ending logic
+        # steps track approximate action/event sequence indices
+        self.step = 0
+        # record when grey/black first happened (step number)
+        self.history['grey_step'] = None
+        self.history['black_step'] = None
+        # after black tracking
+        self.history['post_black_decrease_count'] = 0
+        self.history['post_black_increased'] = False
+        # consecutive negative event choices after black
+        self.history['post_black_negative_consec'] = 0
+        # record last money value when a negative event choice occurred after black
+        self.history['last_negative_choice_money'] = 0
         self.logs = []
 
         # scenes
@@ -1110,7 +1324,7 @@ class Game:
         # reset state
         self.hearts = 10
         self.money = 0
-        self.history = {'had_grey': False, 'had_red_again': False, 'ended_black': False}
+        self.history = {'had_grey': False, 'had_red_again': False, 'ended_black': False, 'chose_positive_event': False, 'grey_choice_count': 0}
         self.logs = []
         # recreate business scene for fresh event queue
         self.scenes['business'] = BusinessScene(self)
@@ -1134,17 +1348,50 @@ class Game:
                 pass
 
     def change_hearts(self, delta):
+        # increment step so we can reason about sequence/timing
+        try:
+            self.step += 1
+        except Exception:
+            self.step = getattr(self, 'step', 0) + 1
+
+        prev = getattr(self, 'hearts', 10)
         if delta == -999:
             self.hearts = 0
         else:
             self.hearts = max(0, min(10, self.hearts + delta))
-        # update history
-        if 4 <= self.hearts <= 7:
-            self.history['had_grey'] = True
-        if self.hearts >= 8 and self.history.get('had_grey'):
-            self.history['had_red_again'] = True
-        if self.hearts <= 3:
-            self.history['ended_black'] = True
+
+        # update history: detect entry into grey range
+        try:
+            if not self.history.get('had_grey') and 4 <= self.hearts <= 7:
+                self.history['had_grey'] = True
+                self.history['grey_step'] = self.step
+        except Exception:
+            pass
+
+        # detect re-red (if rose after grey)
+        try:
+            if self.hearts >= 8 and self.history.get('had_grey'):
+                self.history['had_red_again'] = True
+        except Exception:
+            pass
+
+        # detect entry into black range
+        try:
+            if not self.history.get('ended_black') and self.hearts <= 3:
+                self.history['ended_black'] = True
+                self.history['black_step'] = self.step
+        except Exception:
+            pass
+
+        # track changes that happen after black has occurred
+        try:
+            if self.history.get('ended_black'):
+                if delta < 0:
+                    self.history['post_black_decrease_count'] = self.history.get('post_black_decrease_count', 0) + 1
+                elif delta > 0:
+                    self.history['post_black_increased'] = True
+        except Exception:
+            pass
 
     def add_log(self, text):
         self.logs.append(text)
@@ -1271,6 +1518,7 @@ class Game:
             for e in events:
                 if e.type == pygame.QUIT:
                     running = False
+                # (removed quick-play E-key shortcut per user request)
             # delegate
             self.current.handle_events(events)
             try:
