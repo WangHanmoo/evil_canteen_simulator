@@ -72,6 +72,110 @@ def wrap_text(text, font, max_width):
     return lines
 
 
+# --- Sound helper -------------------------------------------------
+class SoundManager:
+    def __init__(self):
+        self.available = False
+        self.click = None
+        self.select = None
+        self.bgm_path = None
+        try:
+            # initialize mixer with reasonable defaults; ignore failures
+            pygame.mixer.init(frequency=44100)
+            self.available = True
+        except Exception:
+            print("[SoundManager] audio mixer unavailable; continuing without sound")
+            self.available = False
+            return
+
+        # try load common sfx names from assets/sounds
+        sfx_dir = os.path.join('assets', 'sounds')
+        try:
+            click_candidates = ['click.wav', 'click.ogg', 'select.wav', 'select.ogg']
+            for fn in click_candidates:
+                p = os.path.join(sfx_dir, fn)
+                if os.path.exists(p):
+                    try:
+                        self.click = pygame.mixer.Sound(p)
+                        break
+                    except Exception:
+                        self.click = None
+            # fallback: look for any file starting with 'click' or 'select'
+            if not self.click and os.path.isdir(sfx_dir):
+                for fn in os.listdir(sfx_dir):
+                    if fn.lower().startswith('click') or fn.lower().startswith('select'):
+                        p = os.path.join(sfx_dir, fn)
+                        try:
+                            self.click = pygame.mixer.Sound(p)
+                            break
+                        except Exception:
+                            continue
+
+            # optional select sound (alias)
+            sel_candidates = ['select.wav', 'select.ogg']
+            for fn in sel_candidates:
+                p = os.path.join(sfx_dir, fn)
+                if os.path.exists(p):
+                    try:
+                        self.select = pygame.mixer.Sound(p)
+                        break
+                    except Exception:
+                        self.select = None
+
+            # background music: try common names
+            for name in ('bgm.ogg', 'bgm.mp3', 'bgm.wav', 'music.ogg', 'music.mp3'):
+                p = os.path.join(sfx_dir, name)
+                if os.path.exists(p):
+                    try:
+                        self.bgm_path = p
+                        break
+                    except Exception:
+                        self.bgm_path = None
+        except Exception:
+            pass
+
+    def play_click(self):
+        try:
+            if not self.available:
+                return
+            if self.click:
+                self.click.play()
+        except Exception:
+            pass
+
+    def play_select(self):
+        try:
+            if not self.available:
+                return
+            if self.select:
+                self.select.play()
+            elif self.click:
+                self.click.play()
+        except Exception:
+            pass
+
+    def play_bgm(self, loop=True):
+        try:
+            if not self.available or not self.bgm_path:
+                return
+            # use mixer.music for streaming bgm
+            try:
+                pygame.mixer.music.load(self.bgm_path)
+                pygame.mixer.music.play(-1 if loop else 0)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def stop_bgm(self):
+        try:
+            if not self.available:
+                return
+            pygame.mixer.music.stop()
+        except Exception:
+            pass
+
+
 class Button:
     def __init__(self, rect, text, font, color=(100, 50, 140), hover=(240, 200, 60)):
         self.rect = pygame.Rect(rect)
@@ -277,8 +381,19 @@ class TitleScene(SceneBase):
     def handle_events(self, events):
         for e in events:
             if self.start_btn.handle_event(e):
+                try:
+                    # play click SFX if available
+                    if getattr(self.game, 'sound', None):
+                        self.game.sound.play_click()
+                except Exception:
+                    pass
                 self.game.start_new_run()
             if self.quit_btn.handle_event(e):
+                try:
+                    if getattr(self.game, 'sound', None):
+                        self.game.sound.play_click()
+                except Exception:
+                    pass
                 pygame.quit(); sys.exit()
 
     def render(self, surf):
@@ -396,11 +511,21 @@ class PrepScene(SceneBase):
                     if int(self.instruction_progress) < len(self.instruction_text):
                         self.instruction_progress = float(len(self.instruction_text))
                     else:
+                        try:
+                            if getattr(self.game, 'sound', None):
+                                self.game.sound.play_click()
+                        except Exception:
+                            pass
                         self.show_instruction = False
                 continue
 
             for i, btn in enumerate(self.buttons):
                 if btn.handle_event(e):
+                    try:
+                        if getattr(self.game, 'sound', None):
+                            self.game.sound.play_click()
+                    except Exception:
+                        pass
                     heart_delta = self.options[i][1]
                     money_delta = self.options[i][2]
                     self.game.change_hearts(heart_delta)
@@ -620,6 +745,11 @@ class BusinessScene(SceneBase):
                     if int(self.instruction_progress) < len(self.instruction_text):
                         self.instruction_progress = float(len(self.instruction_text))
                     else:
+                        try:
+                            if getattr(self.game, 'sound', None):
+                                self.game.sound.play_click()
+                        except Exception:
+                            pass
                         self.show_instruction = False
                 continue
 
@@ -628,6 +758,11 @@ class BusinessScene(SceneBase):
             if self.current_event:
                 for idx, btn in enumerate(self.event_buttons):
                     if btn.handle_event(e):
+                        try:
+                            if getattr(self.game, 'sound', None):
+                                self.game.sound.play_click()
+                        except Exception:
+                            pass
                         choice = 'A' if idx == 0 else 'B'
                         self.resolve_event(self.current_event, choice)
                         break
@@ -637,6 +772,11 @@ class BusinessScene(SceneBase):
             # No modal/event active: allow normal action button interaction
             for i, btn in enumerate(self.buttons):
                 if btn.handle_event(e):
+                    try:
+                        if getattr(self.game, 'sound', None):
+                            self.game.sound.play_click()
+                    except Exception:
+                        pass
                     heart_delta = self.action_opts[i][1]
                     money_delta = self.action_opts[i][2]
                     if heart_delta != 0:
@@ -1179,6 +1319,11 @@ class EndingScene(SceneBase):
         for e in events:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                 # if body is still typing, complete instantly; otherwise return to title
+                try:
+                    if getattr(self.game, 'sound', None):
+                        self.game.sound.play_click()
+                except Exception:
+                    pass
                 if getattr(self, 'body_progress', 0) < len(getattr(self, 'body_full', '')):
                     self.body_progress = float(len(getattr(self, 'body_full', '')))
                 else:
@@ -1239,15 +1384,19 @@ class EndingScene(SceneBase):
         line_h = self.font.get_linesize()
         block_h = line_h * max(1, len(lines))
         start_y = 400 - block_h // 2 - 100
+        # body text color: for 'apathy' ending use #b90c0c (185,12,12), otherwise default light gray
+        body_color = (185, 12, 12) if getattr(self, 'key', None) == 'apathy' else (230, 230, 230)
         for i, ln in enumerate(lines):
-            txt_surf = self.font.render(ln, True, (230,230,230))
+            txt_surf = self.font.render(ln, True, body_color)
             surf.blit(txt_surf, txt_surf.get_rect(center=(WINDOW_WIDTH//2, start_y + i * line_h + line_h//2)))
 
         # subtitle (single line) below the body
-        sub_surf = self.font.render(getattr(self, 'sub_text', ''), True, (255,255,255))
+        sub_color = (185, 12, 12) if getattr(self, 'key', None) == 'apathy' else (255, 255, 255)
+        sub_surf = self.font.render(getattr(self, 'sub_text', ''), True, sub_color)
         surf.blit(sub_surf, sub_surf.get_rect(center=(WINDOW_WIDTH//2, start_y + block_h + 40)))
-        # move hint to bottom-right
-        hint = self.font.render('Click anywhere to return to title and start a new day.', True, (200,200,200))
+        # move hint to bottom-right; hint color matches body for apathy to keep consistent
+        hint_color = (185, 12, 12) if getattr(self, 'key', None) == 'apathy' else (200, 200, 200)
+        hint = self.font.render('Click anywhere to return to title and start a new day.', True, hint_color)
         surf.blit(hint, (WINDOW_WIDTH - 20 - hint.get_width(), WINDOW_HEIGHT - 20 - hint.get_height()))
 
 
@@ -1257,6 +1406,16 @@ class Game:
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption('Evil Canteen Simulator')
         self.clock = pygame.time.Clock()
+        # sound manager: loads optional SFX/BGM from assets/sounds/
+        try:
+            self.sound = SoundManager()
+            # start background music if available
+            try:
+                self.sound.play_bgm(loop=True)
+            except Exception:
+                pass
+        except Exception:
+            self.sound = None
         # try to load custom heart images from assets/ui/ if present
         heart_images = {
             'red': None,
