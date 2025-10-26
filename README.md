@@ -1,38 +1,31 @@
 # Evil Canteen Simulator
 
-A satirical, interactive Pygame project built for the course **Creative Programming for Designers and Artists**.
+Evil Canteen Simulator is a short moral management simulation game built entirely with Python + Pygame.
+You play as a school cafeteria manager for one day, every unethical decision darkens your “Heart Meter” — from red (pure) to gray (numb) to black (corrupted).
 
-## Features
-- Title menu (Start / Quit)
-- Gameplay with core numeric system:
-  - Evil value (0-10)
-  - Complaints -> Warnings -> Closure
-  - Inspector (bribe mechanic)
-  - Time adjustments (per evil, idle bonuses)
-- Multiple endings based on evil and warnings
-- Clean separation between UI and logic (`gameplay_logic.py`)
+There are 4 possible endings, determined by how far your heart has decayed.
+Can you discover them all?
 
-## How to run
-1. Install dependencies:
-pip install -r requirements.txt
-2. Run:
+# Gameplay Flow
+1️⃣ Start Game → 2️⃣ Preparation Phase (buy ingredients, prep food)
+→ 3️⃣ Business Phase (serve, clean, react to events)
+→ 4️⃣ Incident Phase (complaints, inspections, bribes, layoffs)
+→ 5️⃣ Moral Collapse 
+→ 6️⃣ Ending Evaluation
+
+# Theme & Inspiration
+Evil Canteen Simulator draws inspiration from games like Papers, Please and Mr. TomatoS, exploring how routine decisions lead to moral decay.
+The “Heart Meter” visualizes psychological collapse, making inner corruption visible and interactive.
+
+# Assets
+Free fonts from: https://managore.itch.io/m6x11 (Author: Daniel Linssen)
+The UI part is drawn by myself.
+
+# How to Run
+Clone or download the project.
+
+Install dependencies:
+pip install pygame
+
+Run the game:
 python main.py
-
-## Placeholder UI images (for quick testing)
-
-This project uses placeholder image filenames in `assets/ui/` so you can drop in your own art later. I generated simple PNG placeholders in the repo so the game will display something by default.
-
-Recommended filenames and suggested sizes/styles:
-
-- `PICTURE_background.png` — 1280×720, a subtle textured background, low contrast so UI pops.
-- `PICTURE_figure.png` — 300×300, decorative character / mascot, left side of title screen.
-- `PICTURE_button1.png`, `PICTURE_button2.png` — 360×64 or similar, button art; keep readable text area in center.
-- `PICTURE_text box.png` — 800×200, large dialog/event box background; semi-transparent dark panel works well.
-
-Style notes:
-- Use clear, high-contrast text areas; avoid busy patterns where UI text appears.
-- Keep art assets slightly larger than target sizes so the game can downscale smoothly.
-- Place assets in `assets/ui/` and keep filenames as above to have the game automatically pick them up.
-
-If you want, I can also create template PSD/SVG layout guides with safe areas for text/buttons.
-
