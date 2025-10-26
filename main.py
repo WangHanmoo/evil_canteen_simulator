@@ -61,43 +61,76 @@ class Button:
 
 
 class HeartBar:
-    def __init__(self, max_hearts=10):
+    def __init__(self, max_hearts=10, images=None):
         self.max = max_hearts
+        # images: dict with keys 'red','grey','black','empty' holding pygame Surfaces
+        self.images = images or {}
+
     def draw(self, surf, value, x=None, y=None, size=16, spacing=20):
         """Draw hearts horizontally. If x/y provided, draw starting there (left->right).
-        Otherwise default to top-right as before.
-        size controls icon width (approx)."""
+        Otherwise default to top-right (draws right-to-left).
+        """
         if x is None:
-            x0 = WINDOW_WIDTH - 20
+            # right-to-left starting from near right edge
+            x0 = WINDOW_WIDTH - 20 - size
             y0 = 20
-            # draw right-to-left
             for i in range(self.max):
-                x = x0 - i * spacing
+                xi = x0 - i * spacing
+                yi = y0
                 if i < value:
                     if value >= 8:
-                        color = (220, 40, 40)
+                        img = self.images.get('red')
                     elif value >= 4:
-                        color = (140, 140, 140)
+                        img = self.images.get('grey')
                     else:
-                        color = (20, 20, 20)
+                        img = self.images.get('black')
                 else:
-                    color = (60, 60, 60)
-                pygame.draw.polygon(surf, color, [(x, y0 + 6), (x+int(size/2), y0), (x+size, y0+6), (x+int(size/2), y0+size+6)])
+                    img = self.images.get('empty')
+                    is_empty = (i >= value)
+                    if img:
+                        try:
+                            img_s = pygame.transform.smoothscale(img, (size, size))
+                            surf.blit(img_s, (xi, yi))
+                        except Exception:
+                            # if scaling/blit fails, draw a simple polygon placeholder for full hearts
+                            if not is_empty:
+                                pygame.draw.polygon(surf, (120, 120, 120), [(xi, yi + 6), (xi + int(size/2), yi), (xi + size, yi + 6), (xi + int(size/2), yi + size + 6)])
+                    else:
+                        # If empty-heart sprite is missing, don't draw the placeholder 'fourth' shape;
+                        # leave empty space. For missing full-heart sprites we still draw a polygon.
+                        if not is_empty:
+                            pygame.draw.polygon(surf, (120, 120, 120), [(xi, yi + 6), (xi + int(size/2), yi), (xi + size, yi + 6), (xi + int(size/2), yi + size + 6)])
         else:
-            # left-to-right draw starting at x,y
+            # left-to-right inside a given panel
             for i in range(self.max):
                 xi = x + i * spacing
                 yi = y
                 if i < value:
                     if value >= 8:
-                        color = (220, 40, 40)
+                        img = self.images.get('red')
                     elif value >= 4:
-                        color = (140, 140, 140)
+                        img = self.images.get('grey')
                     else:
-                        color = (20, 20, 20)
+                        img = self.images.get('black')
                 else:
-                    color = (60, 60, 60)
-                pygame.draw.polygon(surf, color, [(xi, yi + 6), (xi+int(size/2), yi), (xi+size, yi+6), (xi+int(size/2), yi+size+6)])
+                    img = self.images.get('empty')
+                is_empty = (i >= value)
+                if img:
+                    try:
+                        img_s = pygame.transform.smoothscale(img, (size, size))
+                        surf.blit(img_s, (xi, yi))
+                    except Exception:
+                        if not is_empty:
+                            pygame.draw.polygon(surf, (120, 120, 120), [(xi, yi + 6), (xi + int(size/2), yi), (xi + size, yi + 6), (xi + int(size/2), yi + size + 6)])
+                else:
+                    if not is_empty:
+                        pygame.draw.polygon(surf, (120, 120, 120), [(xi, yi + 6), (xi + int(size/2), yi), (xi + size, yi + 6), (xi + int(size/2), yi + size + 6)])
+
+    def update(self, dt):
+        pass
+
+    def render(self, surf):
+        pass
 
 
 class SceneBase:
@@ -122,9 +155,13 @@ class TitleScene(SceneBase):
         super().__init__(game)
         self.title_font = load_font("assets/fonts/m6x11plus.ttf", 64)
         self.btn_font = load_font("assets/fonts/m6x11.ttf", 32)
-        self.bg = load_image("assets/ui/PICTURE_background.png", (WINDOW_WIDTH, WINDOW_HEIGHT))
-        self.start_btn = Button((WINDOW_WIDTH//2-180, 360, 360, 64), "Start Game", self.btn_font, color=(110,50,150), hover=(250,220,80))
-        self.quit_btn = Button((WINDOW_WIDTH//2-180, 440, 360, 64), "Quit", self.btn_font, color=(110,50,150), hover=(250,220,80))
+        # use the JPG background for the title screen explicitly
+        self.bg = load_image(os.path.join('assets', 'ui', 'PICTURE_background.jpg'), (WINDOW_WIDTH, WINDOW_HEIGHT))
+        # change Start/Quit button base color to #e5002b
+        btn_color = (229, 0, 43)
+        btn_hover = (255, 60, 80)
+        self.start_btn = Button((WINDOW_WIDTH//2-180, 360, 360, 64), "Start Game", self.btn_font, color=btn_color, hover=btn_hover)
+        self.quit_btn = Button((WINDOW_WIDTH//2-180, 440, 360, 64), "Quit", self.btn_font, color=btn_color, hover=btn_hover)
 
     def handle_events(self, events):
         for e in events:
@@ -135,11 +172,7 @@ class TitleScene(SceneBase):
 
     def render(self, surf):
         surf.blit(self.bg, (0,0))
-        title = self.title_font.render("Evil Canteen Simulator", True, (255, 230, 80))
-        surf.blit(title, title.get_rect(center=(WINDOW_WIDTH//2, 200)))
-        # decorative figure placeholder
-        fig = load_image("assets/ui/PICTURE_figure.png", (200, 200))
-        surf.blit(fig, (80, 120))
+        # (figure removed per request)
         self.start_btn.draw(surf)
         self.quit_btn.draw(surf)
 
@@ -163,8 +196,22 @@ class PrepScene(SceneBase):
             rect = (left, top + i*80, w, 56)
             self.buttons.append(Button(rect, t, self.font, color=(100,50,140), hover=(240,200,60)))
 
+        # instruction modal before any choice
+        self.show_instruction = True
+        self.instruction_text = (
+            "Preparation phase: choose how you prepare the food.\n"
+            "Each choice changes Integrity (hearts) and Money.\n"
+            "Click anywhere to continue and make your selection."
+        )
+
     def handle_events(self, events):
+        # if instruction modal visible, consume clicks to dismiss only
         for e in events:
+            if self.show_instruction:
+                if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                    self.show_instruction = False
+                continue
+
             for i, btn in enumerate(self.buttons):
                 if btn.handle_event(e):
                     heart_delta = self.options[i][1]
@@ -181,6 +228,22 @@ class PrepScene(SceneBase):
         surf.blit(title, (80, 120))
         for b in self.buttons:
             b.draw(surf)
+
+        # draw instruction modal on top if needed
+        if getattr(self, 'show_instruction', False):
+            box_w, box_h = 760, 160
+            bx = (WINDOW_WIDTH - box_w)//2
+            by = (WINDOW_HEIGHT - box_h)//2
+            panel = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+            panel.fill((12, 12, 12, 220))
+            pygame.draw.rect(panel, (200,200,200), (0,0,box_w,box_h), width=2, border_radius=8)
+            f = load_font("assets/fonts/m6x11.ttf", 20)
+            lines = self.instruction_text.split('\n')
+            for i, ln in enumerate(lines):
+                panel.blit(f.render(ln, True, (240,240,240)), (18, 18 + i*28))
+            hint = f.render('Click to continue', True, (200,200,200))
+            panel.blit(hint, (box_w - hint.get_width() - 12, box_h - hint.get_height() - 12))
+            surf.blit(panel, (bx, by))
 
 
 class BusinessScene(SceneBase):
@@ -212,9 +275,21 @@ class BusinessScene(SceneBase):
         self.event_delay_min = 5000  # 5 seconds
         self.event_delay_max = 9000  # 9 seconds
         self.next_event_delay = random.randint(self.event_delay_min, self.event_delay_max)
+        # instruction modal before each action phase or when events appear
+        self.show_instruction = True
+        self.instruction_text = (
+            "Business phase: pick an action to manage your canteen.\n"
+            "Actions affect Integrity (hearts) and Money. Click to continue."
+        )
 
     def handle_events(self, events):
         for e in events:
+            # if instruction modal visible, consume click to dismiss only
+            if self.show_instruction:
+                if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                    self.show_instruction = False
+                continue
+
             for i, btn in enumerate(self.buttons):
                 if btn.handle_event(e):
                     heart_delta = self.action_opts[i][1]
@@ -227,9 +302,10 @@ class BusinessScene(SceneBase):
                         # still affect money for minor mistakes
                         self.game.change_money(money_delta)
                         self.game.add_log(f"Minor mistake chosen: {self.action_opts[i][0]} (money {money_delta:+d})")
+                    # do NOT re-show instruction modal after each action (only show once at scene start)
 
             if self.current_event and e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                # click responds to event choices
+                # click responds to event choices (only when instruction dismissed)
                 mx, my = e.pos
                 # simple two-choice buttons in event box
                 # left half = choice A, right half = choice B
@@ -283,6 +359,7 @@ class BusinessScene(SceneBase):
             self.event_timer = 0
             # pick next random delay for subsequent event
             self.next_event_delay = random.randint(self.event_delay_min, self.event_delay_max)
+            # do not show instruction modal for each event; events are interactive immediately
 
         # check end of day condition: once all events processed -> show ending
         if not self.event_queue and not self.current_event:
@@ -320,14 +397,40 @@ class BusinessScene(SceneBase):
             surf.blit(la.render('Choice A', True, (255,255,255)), left_area.center)
             surf.blit(la.render('Choice B', True, (255,255,255)), right_area.center)
 
+        # draw instruction modal if visible (over everything)
+        if getattr(self, 'show_instruction', False):
+            box_w, box_h = 760, 160
+            bx = (WINDOW_WIDTH - box_w)//2
+            by = (WINDOW_HEIGHT - box_h)//2
+            panel = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+            panel.fill((10, 10, 10, 220))
+            pygame.draw.rect(panel, (200,200,200), (0,0,box_w,box_h), width=2, border_radius=8)
+            f = load_font("assets/fonts/m6x11.ttf", 20)
+            lines = getattr(self, 'instruction_text', '').split('\n')
+            for i, ln in enumerate(lines):
+                panel.blit(f.render(ln, True, (240,240,240)), (18, 18 + i*28))
+            hint = f.render('Click to continue', True, (200,200,200))
+            panel.blit(hint, (box_w - hint.get_width() - 12, box_h - hint.get_height() - 12))
+            surf.blit(panel, (bx, by))
+
 
 class EndingScene(SceneBase):
     def __init__(self, game):
         super().__init__(game)
         self.font = load_font("assets/fonts/m6x11.ttf", 28)
         self.title_font = load_font("assets/fonts/m6x11plus.ttf", 48)
-        self.bg = load_image("assets/ui/PICTURE_background.png", (WINDOW_WIDTH, WINDOW_HEIGHT))
+        # load background image, prefer png then jpg/jpeg
+        bg_path = None
+        for ext in ('.png', '.jpg', '.jpeg'):
+            p = os.path.join('assets', 'ui', f'PICTURE_background{ext}')
+            if os.path.exists(p):
+                bg_path = p
+                break
+        if not bg_path:
+            bg_path = os.path.join('assets', 'ui', 'PICTURE_background.png')
+        self.bg = load_image(bg_path, (WINDOW_WIDTH, WINDOW_HEIGHT))
 
+    # SceneBase was moved earlier in the file; no inner class needed here.
     def start(self):
         # determine ending text based on game.hearts and history
         v = self.game.hearts
@@ -395,7 +498,39 @@ class Game:
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption('Evil Canteen Simulator')
         self.clock = pygame.time.Clock()
-        self.heart_bar = HeartBar(10)
+        # try to load custom heart images from assets/ui/ if present
+        heart_images = {
+            'red': None,
+            'grey': None,
+            'black': None,
+            'empty': None,
+        }
+        try:
+            heart_images['red'] = load_image('assets/ui/heart_red.png')
+        except Exception:
+            pass
+        try:
+            heart_images['grey'] = load_image('assets/ui/heart_grey.png')
+        except Exception:
+            pass
+        try:
+            heart_images['black'] = load_image('assets/ui/heart_black.png')
+        except Exception:
+            pass
+        try:
+            heart_images['empty'] = load_image('assets/ui/heart_empty.png')
+        except Exception:
+            pass
+
+        # try to load money icon
+        try:
+            self.money_icon = load_image('assets/ui/money.png')
+        except Exception:
+            self.money_icon = None
+
+        self.heart_bar = HeartBar(10, images=heart_images)
+        # HUD visibility flag: hide top-left/right values until Start is clicked
+        self.show_hud = False
         # core state
         self.hearts = 10
         self.money = 0  # financial counter (profit positive, loss negative)
@@ -420,6 +555,8 @@ class Game:
         # recreate business scene for fresh event queue
         self.scenes['business'] = BusinessScene(self)
         self.scenes['ending'] = EndingScene(self)
+        # show HUD from now on
+        self.show_hud = True
         self.change_scene('prep')
 
     def change_money(self, delta):
@@ -506,28 +643,59 @@ class Game:
         """Draw a compact status box at top-right containing hearts and money.
         Money is right-aligned with $ prefix and colored green (profit) or red (loss).
         """
-        box_w = 240
-        box_h = 56
+        # make the status box wider and taller so hearts can be centered and prominent
+        box_w = 360
+        box_h = 110
         padding = 8
         x = WINDOW_WIDTH - box_w - 10
         y = 10
         panel = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
-        panel.fill((18, 14, 22, 200))
-        # border
-        pygame.draw.rect(panel, (80, 55, 140), (0,0,box_w,box_h), width=2, border_radius=8)
+        panel.fill((18, 14, 22, 220))
 
-        # hearts (draw small icons at left inside panel)
-        heart_x = padding
-        heart_y = 6
-        # draw hearts inside panel by delegating to HeartBar
-        self.heart_bar.draw(panel, self.hearts, x=heart_x, y=heart_y, size=14, spacing=18)
+        # hearts: center the full row across the panel
+        max_hearts = self.heart_bar.max
+        # choose a size that fills the bar nicely
+        heart_size = 28
+        # compute spacing to spread hearts across width between padding
+        avail_w = box_w - padding*2 - heart_size
+        if max_hearts > 1:
+            spacing = max(18, avail_w // (max_hearts - 1))
+        else:
+            spacing = 0
+        total_row_w = heart_size + spacing * (max_hearts - 1)
+        start_x = (box_w - total_row_w) // 2
+        heart_y = 10
+        self.heart_bar.draw(panel, self.hearts, x=start_x, y=heart_y, size=heart_size, spacing=spacing)
 
-        # money text right-aligned inside panel
-        font = load_font("assets/fonts/m6x11.ttf", 20)
+        # money text larger and right-aligned beneath hearts, with optional icon to its left
+        font = load_font("assets/fonts/m6x11.ttf", 36)
         money_text = f"${self.money:+d}"
         color = (50, 200, 80) if self.money >= 0 else (220, 80, 80)
         txt = font.render(money_text, True, color)
-        panel.blit(txt, (box_w - padding - txt.get_width(), (box_h - txt.get_height())//2))
+
+        icon_w = icon_h = 0
+        if getattr(self, 'money_icon', None):
+            try:
+                # scale icon slightly larger than text height for visibility
+                icon_h = int(txt.get_height() * 1.1)  # 10% larger than text height
+                icon_w = int(self.money_icon.get_width() * (icon_h / self.money_icon.get_height()))
+                icon_s = pygame.transform.smoothscale(self.money_icon, (icon_w, icon_h))
+            except Exception:
+                icon_s = None
+                icon_w = 0
+                icon_h = 0
+        else:
+            icon_s = None
+
+        # right-align the combined icon+text inside the panel
+        total_w = icon_w + (6 if icon_w and txt.get_width() else 0) + txt.get_width()
+        money_x = box_w - padding - total_w
+        money_y = heart_y + heart_size + 8
+        if icon_s:
+            panel.blit(icon_s, (money_x, money_y))
+            panel.blit(txt, (money_x + icon_w + 6, money_y))
+        else:
+            panel.blit(txt, (box_w - padding - txt.get_width(), money_y))
 
         # blit panel onto surface
         surf.blit(panel, (x, y))
@@ -548,14 +716,17 @@ class Game:
                 pass
             # render
             self.current.render(self.screen)
-            # draw heart bar
-            self.heart_bar.draw(self.screen, self.hearts)
-            # draw logs
+            # draw HUD elements only after Start has been clicked
+            if self.show_hud:
+                # heart bar (standalone) and status/debug panels
+                self.heart_bar.draw(self.screen, self.hearts)
+                # draw debug panel
+                self.draw_debug(self.screen)
+                # draw status box (hearts + money) at top-right
+                self.draw_status(self.screen)
+
+            # draw logs (keep visible regardless of HUD state)
             self.draw_logs(self.screen)
-            # draw debug panel
-            self.draw_debug(self.screen)
-            # draw status box (hearts + money) at top-right
-            self.draw_status(self.screen)
             pygame.display.flip()
 
         pygame.quit()

@@ -41,6 +41,8 @@ def make_image(name, size, bg_color, text_color=(240,240,240), fontsize=32):
 # nicer definitions: (filename without ext, size, bg color)
 items = [
     ('PICTURE_background', (1280, 720), (40, 38, 48)),
+    ('PICTURE_background2', (1280, 720), (60, 48, 58)),
+    ('PICTURE_background3', (1280, 720), (48, 60, 58)),
     ('PICTURE_figure', (300, 300), (120, 90, 90)),
     ('PICTURE_button1', (360, 64), (70, 95, 160)),
     ('PICTURE_button2', (360, 64), (160, 95, 70)),
